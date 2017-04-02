@@ -62,7 +62,13 @@
 `define wait_jtag_period #50
 
 
-module adv_debug_tb; 
+module adv_debug_tb #(
+    // Define this if you intend to use the JSP in a system with multiple
+    // devices on the JTAG chain
+    parameter ADBG_JSP_SUPPORT_MULTI		= "ENABLED",
+    // If this is enabled, status bits will be skipped on burst
+    // reads and writes to improve download speeds.
+    parameter ADBG_USE_HISPEED			= "ENABLED");
 
 // Connections to the JTAG TAP
 reg jtag_tck_o;
@@ -81,7 +87,6 @@ wire dbg_tdo;
 wire dbg_sel;
 
 // Connections between the debug module and the wishbone
-`ifdef DBG_WISHBONE_SUPPORTED
 wire [31:0] wb_adr;
 wire [31:0] wb_dat_m;
 wire [31:0] wb_dat_s;
@@ -93,9 +98,7 @@ wire wb_ack;
 wire wb_err;
 reg wb_clk_i;  // the wishbone clock
 reg wb_rst_i;
-`endif
 
-`ifdef DBG_CPU0_SUPPORTED
 wire cpu0_clk;
 wire [31:0]cpu0_addr;
 wire [31:0] cpu0_data_c;
@@ -106,7 +109,6 @@ wire cpu0_stb;
 wire cpu0_we;
 wire cpu0_ack;
 wire cpu0_rst;
-`endif
 
 wire jsp_int;
    
@@ -137,13 +139,11 @@ begin
 end
 
 // Provide the wishbone clock
-`ifdef DBG_WISHBONE_SUPPORTED
 initial
 begin
   wb_clk_i = 1'b0;
   forever #7 wb_clk_i = ~wb_clk_i;  // Odd frequency ratio to test the synchronization
 end
-`endif
 
 
 
@@ -862,7 +862,14 @@ tap_top  i_tap (
 
 
 // Top module
-adbg_top i_dbg_module(
+adbg_top
+  #(.DBG_WISHBONE_SUPPORTED ("ENABLED"),
+    .DBG_CPU0_SUPPORTED     ("ENABLED"),
+    .DBG_CPU1_SUPPORTED     ("NONE"),
+    .DBG_JSP_SUPPORTED      ("ENABLED"),
+    .ADBG_JSP_SUPPORT_MULTI (ADBG_JSP_SUPPORT_MULTI),
+    .ADBG_USE_HISPEED       (ADBG_USE_HISPEED))
+   i_dbg_module(
                 // JTAG signals
                 .tck_i(jtag_tck_o),
                 .tdi_i(dbg_tdo),
@@ -879,7 +886,6 @@ adbg_top i_dbg_module(
                 .debug_select_i(dbg_sel)
 
 
-                `ifdef DBG_WISHBONE_SUPPORTED
                 // WISHBONE common signals
                 ,
                 .wb_clk_i(wb_clk_i),
@@ -898,9 +904,7 @@ adbg_top i_dbg_module(
                 .wb_err_i(wb_err),
                 .wb_cti_o(),
                 .wb_bte_o()
-                `endif
 
-		 `ifdef DBG_JSP_SUPPORTED
 		 // WISHBONE slave, including interrupt output     
 		 ,
                 .wb_jsp_adr_i(wb_adr),
@@ -916,7 +920,6 @@ adbg_top i_dbg_module(
                 .wb_jsp_cti_i(),
                 .wb_jsp_bte_i(),
 		.int_o(jsp_int)
-		`endif
 
               );
 
@@ -1098,7 +1101,7 @@ begin
    write_bit(3'h0);           // capture_ir
    write_bit(3'h0);           // shift_ir
 
-`ifdef ADBG_USE_HISPEED
+   if (ADBG_USE_HISPEED != "NONE") begin
       // Get 1 status bit, then word_size_bytes*8 bits
       status = 1'b0;
       j = 0;
@@ -1110,24 +1113,24 @@ begin
       //if(j > 1) begin
       //   $display("Took %0d tries before good status bit during burst read", j);
       //end
-`endif
+      end
    
    // Now, repeat...
    for(i = 0; i < word_count; i=i+1) begin
      
-`ifndef ADBG_USE_HISPEED     
-      // Get 1 status bit, then word_size_bytes*8 bits
-      status = 1'b0;
-      j = 0;
-      while(!status) begin
-         read_write_bit(3'h0, status);
-         j = j + 1;
-      end
+      if (ADBG_USE_HISPEED == "NONE") begin
+         // Get 1 status bit, then word_size_bytes*8 bits
+         status = 1'b0;
+         j = 0;
+         while(!status) begin
+            read_write_bit(3'h0, status);
+            j = j + 1;
+         end
       
       //if(j > 1) begin
        //  $display("Took %0d tries before good status bit during burst read", j);
       //end
-`endif
+      end
   
      jtag_read_write_stream(64'h0, {2'h0,(word_size_bytes<<3)},0,instream);
      //$display("Read 0x%0x", instream[31:0]);
@@ -1206,16 +1209,16 @@ begin
       crc_calc_i = crc_calc_o;
       
       
-`ifndef ADBG_USE_HISPEED
-      // Check if WB bus is ready
-      // *** THIS WILL NOT WORK IF THERE IS MORE THAN 1 DEVICE IN THE JTAG CHAIN!!!
-      status = 1'b0;
-      read_write_bit(3'h0, status);
-      
-      if(!status) begin
-         $display("Bad status bit during burst write, index %d", i);
+      if (ADBG_USE_HISPEED == "NONE") begin
+         // Check if WB bus is ready
+         // *** THIS WILL NOT WORK IF THERE IS MORE THAN 1 DEVICE IN THE JTAG CHAIN!!!
+         status = 1'b0;
+         read_write_bit(3'h0, status);
+
+         if(!status) begin
+            $display("Bad status bit during burst write, index %d", i);
+         end
       end
-`endif      
   
      //$display("Wrote 0x%0x", dataword);
    end
@@ -1255,19 +1258,18 @@ endtask
 	 write_bit(3'h0);           // capture_ir
 	 write_bit(3'h0);           // shift_ir
 
-`ifdef ADBG_JSP_SUPPORT_MULTI
-	 read_write_bit(`JTAG_TDO_bit,inbit);           // Put the start bit
-`endif
+         if (ADBG_JSP_SUPPORT_MULTI != "NONE")
+	   read_write_bit(`JTAG_TDO_bit,inbit);           // Put the start bit
 
 	 // Put / get lengths
 	 jtag_read_write_stream({56'h0,words_to_put, 4'b0000}, 8'h8,0,instream);
 	 
-`ifdef ADBG_JSP_SUPPORT_MULTI
-  //shiftbit = instream[7];
-  instream = (instream << 1);
-  instream[0] = inbit;
-  inbit = instream[8];
-`endif
+         if (ADBG_JSP_SUPPORT_MULTI != "NONE") begin
+            //shiftbit = instream[7];
+            instream = (instream << 1);
+            instream[0] = inbit;
+            inbit = instream[8];
+         end
 
 	 $display("JSP got %d bytes available, %d bytes free", instream[7:4], instream[3:0]);
 
@@ -1288,12 +1290,12 @@ endtask
 	 for(i = 0; i < xfer_size; i=i+1) begin
 	   #100
 	    jtag_read_write_stream(outstream>>(i*8), 8'h8,0,instream);  // Length is in bits...
-`ifdef ADBG_JSP_SUPPORT_MULTI	    
-      input_data8[i] = {instream[6:0], inbit};
-      inbit = instream[7];
-`else
-	    input_data8[i] = instream[7:0];  // Move input data to where it can be gotten by main task
-`endif
+            if (ADBG_JSP_SUPPORT_MULTI != "NONE") begin
+               input_data8[i] = {instream[6:0], inbit};
+               inbit = instream[7];
+            end else begin
+	       input_data8[i] = instream[7:0];  // Move input data to where it can be gotten by main task
+            end
 	 end
 
 	 // JSP does not use the module_inhibit output, so last data bit must be a '0'
