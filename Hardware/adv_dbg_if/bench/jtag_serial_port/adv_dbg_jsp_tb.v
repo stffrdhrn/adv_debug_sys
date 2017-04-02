@@ -962,7 +962,7 @@ begin
     idcode = readdata[31:0];
     $display("Got TAP IDCODE 0x%x, expected 0x%x", idcode, `IDCODE_VALUE);
 end
-endtask;
+endtask
 
 task select_debug_module;
 input [1:0] moduleid;
