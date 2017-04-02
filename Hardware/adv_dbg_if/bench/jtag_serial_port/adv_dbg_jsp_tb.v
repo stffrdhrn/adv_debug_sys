@@ -802,6 +802,7 @@ begin
   
   $display("----------------------------------"); 
   $display("--- ALL TESTS COMPLETE ---"); 
+  $finish;
   
   end
 
