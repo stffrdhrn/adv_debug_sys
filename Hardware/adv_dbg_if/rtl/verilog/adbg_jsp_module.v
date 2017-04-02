@@ -42,7 +42,7 @@
 
 // Module interface
 module adbg_jsp_module #(
-			 ADBG_JSP_SUPPORT_MULTI	= "ENABLED"
+			 parameter ADBG_JSP_SUPPORT_MULTI	= "ENABLED"
     )
     (
 			 // JTAG signals
