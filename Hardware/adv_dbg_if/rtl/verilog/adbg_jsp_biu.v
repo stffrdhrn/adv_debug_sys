@@ -61,6 +61,8 @@ module adbg_jsp_biu
    rd_strobe_i,
    wr_strobe_i,
 
+   debug_select_i,
+
    // Wishbone signals
    wb_clk_i,
    wb_rst_i,
@@ -88,6 +90,8 @@ module adbg_jsp_biu
    output [3:0] bytes_available_o;
    input 	rd_strobe_i;
    input 	wr_strobe_i;
+
+   input 	debug_select_i;
 
    // Wishbone signals
    input 	 wb_clk_i;
@@ -190,7 +194,7 @@ module adbg_jsp_biu
 
    // Combinatorial assignments
    assign rd_bytes_avail_not_zero = !(rd_bytes_avail == 4'h0);
-   assign pop = ren_sff_out & rd_bytes_avail_not_zero;
+   assign pop = (ren_sff_out | ~debug_select_i) & rd_bytes_avail_not_zero;
    assign rcz = ~rd_bytes_avail_not_zero;
    assign wb_fifo_ack = r_wb_ack | w_wb_ack;
    assign wr_fifo_not_empty = !(wr_bytes_avail == 4'h0);

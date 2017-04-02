@@ -56,6 +56,7 @@ module adbg_jsp_module #(
 			 update_dr_i,
 
 			 data_register_i,  // the data register is at top level, shared between all modules
+			 debug_select_i,
 			 module_select_i,
 			 top_inhibit_o,
 			 rst_i,
@@ -79,6 +80,7 @@ module adbg_jsp_module #(
    input         update_dr_i;
 
    input [52:0]  data_register_i;
+   input         debug_select_i;
    input         module_select_i;
    output        top_inhibit_o;
    input         rst_i;
@@ -271,6 +273,8 @@ module adbg_jsp_module #(
 			   .rd_strobe_i     (biu_rd_strobe),
 			   .wr_strobe_i     (biu_wr_strobe),
 			   
+			   .debug_select_i  (debug_select_i),
+
 			   // Wishbone slave signals
 			   .wb_clk_i        (wb_clk_i),
 			   .wb_rst_i        (wb_rst_i),

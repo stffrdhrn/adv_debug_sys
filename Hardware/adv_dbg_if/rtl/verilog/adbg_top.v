@@ -314,6 +314,7 @@ generate
                   .update_dr_i      (update_dr_i),
 
                   .data_register_i  (input_shift_reg),
+                  .debug_select_i   (debug_select_i),
                   .module_select_i  (module_selects[`DBG_TOP_JSP_DEBUG_MODULE]),
                   .top_inhibit_o     (module_inhibit[`DBG_TOP_JSP_DEBUG_MODULE]),
                   .rst_i            (rst_i),
